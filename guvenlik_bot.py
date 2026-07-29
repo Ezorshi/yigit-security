@@ -2,6 +2,15 @@
 ====================================================================
   YIGIT GÜVENLİK BOTU (Render Uyumlu)
 ====================================================================
+Özellikler:
+  - HGBB (Hoş Geldin / Giriş Onay Sistemi)
+  - Otorol (Kendi kendine rol seçme)
+  - Anti-spam (flood koruması)
+  - Anti-raid (çoklu giriş koruması)
+  - Anti-link / davet linki filtresi
+  - Yasaklı kelime filtresi
+  - Loglama (giriş/çıkış, silinen mesaj, ban/kick)
+====================================================================
 """
 
 import discord
@@ -11,12 +20,19 @@ import os
 import time
 from datetime import datetime, timedelta
 from collections import defaultdict, deque
-from flask import Flask
-import threading
 
 # ======================================================================
-# WEB SUNUCUSU (Render için)
+# FLASK (Render için Web Sunucusu)
 # ======================================================================
+try:
+    from flask import Flask
+except ImportError:
+    import subprocess
+    subprocess.check_call(['pip', 'install', 'Flask'])
+    from flask import Flask
+
+import threading
+
 app = Flask(__name__)
 
 @app.route('/')
@@ -59,12 +75,12 @@ SELF_ROLES = {
 }
 
 # Güvenlik ayarları
-SPAM_MESSAGE_LIMIT = 5
-SPAM_TIME_WINDOW = 6
-SPAM_TIMEOUT_MINUTES = 5
-RAID_JOIN_LIMIT = 8
-RAID_TIME_WINDOW = 15
-BANNED_WORDS = {"küfür1", "küfür2", "hakaret"}
+SPAM_MESSAGE_LIMIT = 5      # 6 saniyede 5 mesaj
+SPAM_TIME_WINDOW = 6        # saniye
+SPAM_TIMEOUT_MINUTES = 5    # spam yapanlara susturma
+RAID_JOIN_LIMIT = 8         # 15 saniyede 8 kişi
+RAID_TIME_WINDOW = 15       # saniye
+BANNED_WORDS = {"küfür1", "küfür2", "hakaret"}  # Yasaklı kelimeler
 
 # ======================================================================
 # VERİTABANI
@@ -91,6 +107,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 
+# Takip sistemleri
 message_times = defaultdict(lambda: deque(maxlen=SPAM_MESSAGE_LIMIT))
 join_times = deque(maxlen=RAID_JOIN_LIMIT)
 
@@ -167,6 +184,7 @@ class SelfRoleButton(discord.ui.Button):
 @bot.command(name='hgbb-kur')
 @commands.has_permissions(administrator=True)
 async def hgbb_kur(ctx):
+    """HGBB doğrulama mesajını kurar"""
     embed = discord.Embed(
         title="🚪 Sunucuya Hoş Geldin!",
         description=(
@@ -183,6 +201,7 @@ async def hgbb_kur(ctx):
 @bot.command(name='otorol-kur')
 @commands.has_permissions(administrator=True)
 async def otorol_kur(ctx):
+    """Otorol menüsünü kurar"""
     aciklama = "\n".join(f"{emoji} — **{name}**" for emoji, (rid, name) in SELF_ROLES.items() if rid)
     if not aciklama:
         aciklama = "⚠️ Henüz hiç rol ayarlanmamış!"
@@ -197,6 +216,7 @@ async def otorol_kur(ctx):
 
 @bot.command(name='yardim')
 async def yardim(ctx):
+    """Yardım menüsünü gösterir"""
     embed = discord.Embed(
         title="🛡️ YIGIT GÜVENLİK BOTU",
         description="**Komutlar:**\n"
@@ -224,24 +244,29 @@ async def on_ready():
     print(f'✅ Bot hazir! {bot.user}')
     print(f'📊 {len(bot.guilds)} sunucuda aktif')
     
+    # Butonları kalıcı yap
     bot.add_view(HGBBVerifyView())
     bot.add_view(SelfRoleView())
 
 @bot.event
 async def on_member_join(member):
+    """Yeni üye geldiğinde"""
     guild = member.guild
     now = time.time()
     join_times.append(now)
     
+    # Anti-raid kontrolü
     if len(join_times) == RAID_JOIN_LIMIT and (now - join_times[0]) <= RAID_TIME_WINDOW:
         db = load_db()
         if not db.get("lockdown"):
             db["lockdown"] = True
             save_db(db)
+            # Log kanalına mesaj
             channel = guild.get_channel(LOG_CHANNEL_ID)
             if channel:
                 await channel.send("🚨 **RAID TESPİT EDİLDİ!** Sunucu otomatik kilitlendi.")
     
+    # Doğrulanmamış rolü ver
     unverified_role = guild.get_role(UNVERIFIED_ROLE_ID)
     if unverified_role:
         try:
@@ -249,6 +274,7 @@ async def on_member_join(member):
         except:
             pass
     
+    # Hoş geldin mesajı
     channel = guild.get_channel(WELCOME_CHANNEL_ID)
     if channel:
         embed = discord.Embed(
@@ -261,6 +287,7 @@ async def on_member_join(member):
 
 @bot.event
 async def on_message(message):
+    """Mesaj kontrolü - Anti-spam, Anti-link, Yasaklı kelime"""
     if message.author.bot or not message.guild:
         return
     
@@ -270,6 +297,7 @@ async def on_message(message):
     if not is_mod:
         db = load_db()
         
+        # Kilit modu kontrolü
         if db.get("lockdown"):
             unverified_role = message.guild.get_role(UNVERIFIED_ROLE_ID)
             if unverified_role and unverified_role in member.roles:
@@ -279,6 +307,7 @@ async def on_message(message):
                     pass
                 return
         
+        # Anti-link
         lowered = message.content.lower()
         if "discord.gg/" in lowered or "discord.com/invite/" in lowered:
             try:
@@ -288,6 +317,7 @@ async def on_message(message):
                 pass
             return
         
+        # Yasaklı kelime
         if any(word in lowered for word in BANNED_WORDS):
             try:
                 await message.delete()
@@ -296,6 +326,7 @@ async def on_message(message):
                 pass
             return
         
+        # Anti-spam
         now = time.time()
         times = message_times[member.id]
         times.append(now)
