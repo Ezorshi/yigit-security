@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
 
 # ======================================================================
-# FLASK (Render için Web Sunucusu — bot canlı kalsın diye)
+# FLASK (Render için Web Sunucusu)
 # ======================================================================
 try:
     from flask import Flask
@@ -52,43 +52,130 @@ if not TOKEN:
 PREFIX = "ys!"
 
 # ======================================================================
-# GENEL GÜVENLİK AYARLARI (varsayılan - sunucuya özel de değiştirilebilir)
+# GENEL GÜVENLİK AYARLARI
 # ======================================================================
-SPAM_MESSAGE_LIMIT = 5        # bu kadar mesaj
-SPAM_TIME_WINDOW = 6          # bu kadar saniyede atılırsa spam sayılır
+SPAM_MESSAGE_LIMIT = 5
+SPAM_TIME_WINDOW = 6
 SPAM_TIMEOUT_MINUTES = 5
-MENTION_SPAM_LIMIT = 5         # tek mesajda bu kadar mention -> spam
+MENTION_SPAM_LIMIT = 5
 RAID_JOIN_LIMIT = 8
 RAID_TIME_WINDOW = 15
-DEFAULT_BANNED_WORDS = []      # her sunucu kendi listesini ekler
-
 XP_MIN = 15
 XP_MAX = 25
-XP_COOLDOWN = 60               # saniye - bu sürede tekrar mesaj atarsa XP almaz
+XP_COOLDOWN = 60
 
 DB_FILE = "guvenlik_data.json"
 
 # ======================================================================
-# VERİTABANI (sunucu bazlı JSON)
+# DİL SİSTEMİ - TÜM ÇEVİRİLER
+# ======================================================================
+LANGUAGES = {
+    "tr": {
+        "name": "🇹🇷 Türkçe",
+        "bot_started": "✅ Bot hazır! {bot_user}",
+        "bot_guilds": "📊 {guild_count} sunucuda aktif",
+        "help_title": "🛡️ YigitScript Security — Yardım Menüsü",
+        "help_description": "Aşağıdaki menüden bir kategori seç.\n\n**Sistemler:** HGBB • Otorol • Moderasyon • Güvenlik • Seviye • Ticket • Çekiliş",
+        "help_select_placeholder": "📂 Bir kategori seç...",
+        "help_categories": ["ℹ️ Genel", "🚪 HGBB / Otorol", "🛡️ Moderasyon", "🔒 Güvenlik Ayarları", "⭐ Seviye Sistemi", "🎫 Ticket", "🎉 Çekiliş"],
+        "help_genel_title": "ℹ️ Genel Komutlar",
+        "help_genel_desc": "`{prefix}yardim` — Bu menüyü açar\n`{prefix}bilgi` — Sunucu ve bot hakkında bilgi\n`{prefix}ping` — Bot gecikmesini gösterir\n`{prefix}ayarlar` — Sunucu yapılandırmasını gösterir\n`{prefix}dil` — Bot dilini değiştirir",
+        "help_hgbb_title": "🚪 HGBB & Otorol",
+        "help_hgbb_desc": "`{prefix}hgbb-ayarla #kanal` *(yetkili)*\n`{prefix}otorol-ayarla @rol` *(yetkili)* — giren herkese otomatik rol verilir\n`{prefix}otorol-kapat` *(yetkili)* — otorolü kapatır",
+        "help_mod_title": "🛡️ Moderasyon",
+        "help_mod_desc": "`{prefix}at @üye [sebep]` — sunucudan atar\n`{prefix}yasakla @üye [sebep]` — banlar\n`{prefix}yasak-kaldir id` — ban kaldırır\n`{prefix}sustur @üye dakika [sebep]`\n`{prefix}sustur-kaldir @üye`\n`{prefix}uyar @üye [sebep]`\n`{prefix}uyarilar @üye`\n`{prefix}temizle [adet]`\n`{prefix}kilitle` / `{prefix}kilit-ac`\n`{prefix}yavaslat saniye`\n`{prefix}rol-ver @üye @rol` / `{prefix}rol-al @üye @rol`",
+        "help_guvenlik_title": "🔒 Güvenlik Ayarları",
+        "help_guvenlik_desc": "`{prefix}ayarla-log #kanal`\n`{prefix}mod-rol @rol`\n`{prefix}kufur-engel ac/kapat` *(yetkili)*\n`{prefix}yasakli-ekle kelime`\n`{prefix}yasakli-sil kelime`\n`{prefix}sunucu-kilitle` / `{prefix}sunucu-kilit-ac`\n\n**Otomatik:** anti-spam, anti-raid, anti-link, mention-spam, küfür filtresi.",
+        "help_seviye_title": "⭐ Seviye Sistemi",
+        "help_seviye_desc": "`{prefix}seviye [@üye]`\n`{prefix}liderlik`\n\nMesaj attıkça XP kazanırsın (60sn cooldown).",
+        "help_ticket_title": "🎫 Ticket Sistemi",
+        "help_ticket_desc": "`{prefix}ayarla-ticket #kategori` *(yetkili)*\n`{prefix}ticket-kur` *(yetkili)*",
+        "help_cekilis_title": "🎉 Çekiliş",
+        "help_cekilis_desc": "`{prefix}cekilis dakika ödül` *(yetkili)*",
+        "no_permission": "❌ Bu komutu kullanmak için yetkin yok.",
+        "hgbb_set": "✅ HGBB kanalı {channel} olarak ayarlandı! Bundan sonra giren-çıkan bildirimleri bu kanala yapılacak.",
+        "otorol_set": "✅ Otorol ayarlandı! Sunucuya yeni katılan herkese otomatik olarak {role} rolü verilecek.",
+        "otorol_disabled": "✅ Otorol kapatıldı. Artık yeni üyelere otomatik rol verilmeyecek.",
+        "welcome_message": "👋 **{member_mention}** sunucuya katıldı! Seninle birlikte **{member_count}** kişi olduk! 🎉\nSunucu kurallarını okumayı unutma!",
+        "leave_message": "😢 **{member_name}** sunucudan ayrıldı. Sensiz **{member_count}** kişi kaldık...",
+        "language_set": "✅ Bot dili **Türkçe** olarak ayarlandı!",
+        "language_select_title": "🌍 Dil Seçimi / Language Selection",
+        "language_select_desc": "Lütfen botun dilini seçin:\nPlease select bot language:\n\n🇹🇷 **Türkçe**\n🇬🇧 **English**",
+        "kufur_engel_on": "✅ Küfür engelleme sistemi **aktif**! Artık küfürlü mesajlar otomatik silinecek.",
+        "kufur_engel_off": "✅ Küfür engelleme sistemi **devre dışı** bırakıldı.",
+        "kufur_engel_warning": "⚠️ {member} mesajın küfür içerdiği için silindi!",
+        "turkish_badwords": ["sik", "amk", "orospu", "yarrak", "siktir", "ananı", "göt", "piç", "ibne", "amına", "sokayım", "sokim", "aq", "mk", "amcık", "sikik", "sikim", "pezevenk", "kahpe", "fahişe", "orosbu"],
+        "english_badwords": ["fuck", "shit", "ass", "bitch", "dick", "pussy", "bastard", "whore", "slut", "motherfucker", "fcker", "fck", "fcking", "fucking", "sh1t", "b1tch"],
+    },
+    "en": {
+        "name": "🇬🇧 English",
+        "bot_started": "✅ Bot ready! {bot_user}",
+        "bot_guilds": "📊 Active in {guild_count} servers",
+        "help_title": "🛡️ YigitScript Security — Help Menu",
+        "help_description": "Select a category from the menu below.\n\n**Systems:** Welcome • Autorole • Moderation • Security • Levels • Tickets • Giveaway",
+        "help_select_placeholder": "📂 Select a category...",
+        "help_categories": ["ℹ️ General", "🚪 Welcome / Autorole", "🛡️ Moderation", "🔒 Security Settings", "⭐ Level System", "🎫 Tickets", "🎉 Giveaway"],
+        "help_genel_title": "ℹ️ General Commands",
+        "help_genel_desc": "`{prefix}help` — Opens this menu\n`{prefix}info` — Shows server & bot info\n`{prefix}ping` — Shows bot latency\n`{prefix}settings` — Shows server configuration\n`{prefix}language` — Changes bot language",
+        "help_hgbb_title": "🚪 Welcome & Autorole",
+        "help_hgbb_desc": "`{prefix}welcome-set #channel` *(admin)*\n`{prefix}autorole-set @role` *(admin)* — auto role for new members\n`{prefix}autorole-off` *(admin)* — disables autorole",
+        "help_mod_title": "🛡️ Moderation",
+        "help_mod_desc": "`{prefix}kick @member [reason]`\n`{prefix}ban @member [reason]`\n`{prefix}unban id`\n`{prefix}mute @member minutes [reason]`\n`{prefix}unmute @member`\n`{prefix}warn @member [reason]`\n`{prefix}warnings @member`\n`{prefix}clear [amount]`\n`{prefix}lock` / `{prefix}unlock`\n`{prefix}slowmode seconds`\n`{prefix}giverole @member @role` / `{prefix}removerole @member @role`",
+        "help_guvenlik_title": "🔒 Security Settings",
+        "help_guvenlik_desc": "`{prefix}set-log #channel`\n`{prefix}mod-role @role`\n`{prefix}swear-filter on/off` *(admin)*\n`{prefix}add-bannedword word`\n`{prefix}remove-bannedword word`\n`{prefix}server-lock` / `{prefix}server-unlock`\n\n**Auto protection:** anti-spam, anti-raid, anti-link, mention-spam, swear filter.",
+        "help_seviye_title": "⭐ Level System",
+        "help_seviye_desc": "`{prefix}rank [@member]`\n`{prefix}leaderboard`\n\nEarn XP by chatting (60s cooldown).",
+        "help_ticket_title": "🎫 Ticket System",
+        "help_ticket_desc": "`{prefix}set-ticket #category` *(admin)*\n`{prefix}ticket-setup` *(admin)*",
+        "help_cekilis_title": "🎉 Giveaway",
+        "help_cekilis_desc": "`{prefix}giveaway minutes prize` *(admin)*",
+        "no_permission": "❌ You don't have permission to use this command.",
+        "hgbb_set": "✅ Welcome channel set to {channel}! Join/leave notifications will be sent here.",
+        "otorol_set": "✅ Autorole set! All new members will automatically receive {role} role.",
+        "otorol_disabled": "✅ Autorole disabled. New members will no longer receive automatic roles.",
+        "welcome_message": "👋 **{member_mention}** joined the server! We are now **{member_count}** members! 🎉\nDon't forget to read the rules!",
+        "leave_message": "😢 **{member_name}** left the server. We are now **{member_count}** members without you...",
+        "language_set": "✅ Bot language set to **English**!",
+        "language_select_title": "🌍 Dil Seçimi / Language Selection",
+        "language_select_desc": "Lütfen botun dilini seçin:\nPlease select bot language:\n\n🇹🇷 **Türkçe**\n🇬🇧 **English**",
+        "kufur_engel_on": "✅ Swear filter **enabled**! Offensive messages will be automatically deleted.",
+        "kufur_engel_off": "✅ Swear filter **disabled**.",
+        "kufur_engel_warning": "⚠️ {member} your message was deleted for containing offensive language!",
+        "english_badwords": ["fuck", "shit", "ass", "bitch", "dick", "pussy", "bastard", "whore", "slut", "motherfucker", "fcker", "fck", "fcking", "fucking", "sh1t", "b1tch", "nigger", "retard", "cunt", "cock"],
+        "turkish_badwords": ["sik", "amk", "orospu", "yarrak", "siktir", "ananı", "göt", "piç", "ibne", "amına", "sokayım", "sokim", "aq", "mk", "amcık", "sikik", "sikim", "pezevenk", "kahpe", "fahişe", "orosbu"],
+    }
+}
+
+
+def get_lang(guild_id):
+    data = get_guild_data(guild_id)
+    lang = data.get("language", "tr")
+    return LANGUAGES.get(lang, LANGUAGES["tr"])
+
+
+def get_text(guild_id, key, **kwargs):
+    lang = get_lang(guild_id)
+    text = lang.get(key, LANGUAGES["tr"].get(key, key))
+    return text.format(**kwargs)
+
+
+# ======================================================================
+# VERİTABANI
 # ======================================================================
 def _default_guild_data():
     return {
-        "unverified_role_id": None,
-        "verified_role_id": None,
+        "language": "tr",
         "welcome_channel_id": None,
         "log_channel_id": None,
         "mod_role_id": None,
         "ticket_category_id": None,
-        "ticket_log_channel_id": None,
         "ticket_counter": 0,
-        "self_roles": {},          # {emoji: {"role_id": int, "name": str}}
         "banned_words": [],
         "lockdown": False,
-        "verified_users": [],
-        "warns": {},                # {user_id: [ {sebep, veren, tarih} ]}
-        "xp": {},                   # {user_id: {"xp": int, "level": int}}
-        "welcome_message": None,
-        "goodbye_message": None,
+        "warns": {},
+        "xp": {},
+        "otorol_role_id": None,
+        "kufur_engel": True,
     }
 
 
@@ -123,7 +210,6 @@ def get_guild_data(guild_id):
     if gid not in db["guilds"]:
         db["guilds"][gid] = _default_guild_data()
     else:
-        # eski kayıtlarda eksik alan varsa tamamla
         defaults = _default_guild_data()
         for key, value in defaults.items():
             db["guilds"][gid].setdefault(key, value)
@@ -147,8 +233,8 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
 
 message_times = defaultdict(lambda: deque(maxlen=SPAM_MESSAGE_LIMIT))
 join_times_by_guild = defaultdict(lambda: deque(maxlen=RAID_JOIN_LIMIT))
-xp_cooldowns = {}   # (guild_id, user_id) -> son xp zamanı
-
+xp_cooldowns = {}
+bot_start_time = time.time()
 
 # ======================================================================
 # YARDIMCI FONKSİYONLAR
@@ -183,13 +269,13 @@ def mod_only():
     async def predicate(ctx):
         if is_mod(ctx.author):
             return True
-        await ctx.send("❌ Bu komutu kullanmak için yetkin yok.", delete_after=6)
+        lang = get_lang(ctx.guild.id)
+        await ctx.send(lang["no_permission"], delete_after=6)
         return False
     return commands.check(predicate)
 
 
 def level_for_xp(xp: int) -> int:
-    # basit seviye formülü: her seviye biraz daha fazla xp ister
     level = 0
     needed = 100
     remaining = xp
@@ -209,105 +295,51 @@ def xp_for_next_level(level: int) -> int:
     return needed
 
 
+def get_badwords(guild_id):
+    data = get_guild_data(guild_id)
+    lang_code = data.get("language", "tr")
+    lang = LANGUAGES.get(lang_code, LANGUAGES["tr"])
+    return lang.get(f"{lang_code}_badwords", []) + lang.get("english_badwords", [])
+
+
 # ======================================================================
-# HGBB — GİRİŞ / DOĞRULAMA SİSTEMİ
+# DİL SEÇİM MENÜSÜ
 # ======================================================================
-class HGBBVerifyView(discord.ui.View):
+class LanguageSelect(discord.ui.Select):
     def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="✅ Doğrula ve Sunucuya Katıl", style=discord.ButtonStyle.success, custom_id="ys_hgbb_verify")
-    async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
-        member = interaction.user
-        guild = interaction.guild
-        data = get_guild_data(guild.id)
-
-        verified_role = guild.get_role(data["verified_role_id"]) if data["verified_role_id"] else None
-        unverified_role = guild.get_role(data["unverified_role_id"]) if data["unverified_role_id"] else None
-
-        if not verified_role:
-            await interaction.response.send_message(
-                "⚠️ Üye rolü ayarlanmamış. Bir yetkilinin `ys!ayarla-hgbb` komutunu çalıştırması gerekiyor.",
-                ephemeral=True,
-            )
-            return
-
-        if verified_role in member.roles:
-            await interaction.response.send_message("Zaten doğrulanmışsın! 🎉", ephemeral=True)
-            return
-
-        try:
-            await member.add_roles(verified_role, reason="HGBB doğrulaması")
-            if unverified_role and unverified_role in member.roles:
-                await member.remove_roles(unverified_role, reason="HGBB doğrulaması tamamlandı")
-        except discord.Forbidden:
-            await interaction.response.send_message("⚠️ Rol verme yetkim yok, bir yetkiliyle iletişime geçin.", ephemeral=True)
-            return
-
-        if member.id not in data["verified_users"]:
-            data["verified_users"].append(member.id)
-            save_guild_data(guild.id, data)
-
-        await interaction.response.send_message("✅ Doğrulandın, sunucuya hoş geldin!", ephemeral=True)
-
-        embed = discord.Embed(
-            title="✅ Yeni Doğrulama",
-            description=f"{member.mention} sunucuyu doğruladı.",
-            color=discord.Color.green(),
-            timestamp=datetime.now(timezone.utc),
-        )
-        await log_event(guild, embed)
-
-
-# ======================================================================
-# OTOROL — KENDİ KENDİNE ROL SEÇME
-# ======================================================================
-class SelfRoleButton(discord.ui.Button):
-    def __init__(self, emoji, role_id, name):
-        super().__init__(
-            label=name, emoji=emoji or None,
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"ys_otorol_{role_id}",
-        )
-        self.role_id = int(role_id)
-        self.role_name = name
+        options = [
+            discord.SelectOption(label="🇹🇷 Türkçe", value="tr", description="Bot dilini Türkçe yap"),
+            discord.SelectOption(label="🇬🇧 English", value="en", description="Set bot language to English"),
+        ]
+        super().__init__(placeholder="Dil seçin / Select language...", options=options, custom_id="ys_lang_select")
 
     async def callback(self, interaction: discord.Interaction):
-        member = interaction.user
-        role = interaction.guild.get_role(self.role_id)
-        if not role:
-            await interaction.response.send_message("⚠️ Bu rol artık mevcut değil.", ephemeral=True)
-            return
-        try:
-            if role in member.roles:
-                await member.remove_roles(role, reason="Otorol - kaldırıldı")
-                await interaction.response.send_message(f"➖ **{self.role_name}** rolü kaldırıldı.", ephemeral=True)
-            else:
-                await member.add_roles(role, reason="Otorol - eklendi")
-                await interaction.response.send_message(f"➕ **{self.role_name}** rolü verildi.", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.response.send_message("⚠️ Bu rolü veremiyorum, rol hiyerarşisini kontrol edin.", ephemeral=True)
+        data = get_guild_data(interaction.guild.id)
+        data["language"] = self.values[0]
+        save_guild_data(interaction.guild.id, data)
+        lang = get_lang(interaction.guild.id)
+        await interaction.response.edit_message(content=lang["language_set"], embed=None, view=None)
 
 
-class SelfRoleView(discord.ui.View):
-    def __init__(self, guild_id):
-        super().__init__(timeout=None)
-        data = get_guild_data(guild_id)
-        for emoji, info in data.get("self_roles", {}).items():
-            self.add_item(SelfRoleButton(emoji, info["role_id"], info["name"]))
+class LanguageView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+        self.add_item(LanguageSelect())
 
 
 # ======================================================================
 # TICKET SİSTEMİ
 # ======================================================================
 class TicketOpenView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, guild_id):
         super().__init__(timeout=None)
+        self.guild_id = guild_id
 
-    @discord.ui.button(label="🎫 Destek Talebi Oluştur", style=discord.ButtonStyle.primary, custom_id="ys_ticket_open")
+    @discord.ui.button(label="🎫", style=discord.ButtonStyle.primary, custom_id="ys_ticket_open_main")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         data = get_guild_data(guild.id)
+        lang = get_lang(guild.id)
         category = guild.get_channel(data["ticket_category_id"]) if data["ticket_category_id"] else None
 
         data["ticket_counter"] += 1
@@ -330,33 +362,38 @@ class TicketOpenView(discord.ui.View):
                 f"ticket-{ticket_no:04d}",
                 category=category,
                 overwrites=overwrites,
-                reason=f"{interaction.user} destek talebi açtı",
+                reason=f"{interaction.user} opened ticket",
             )
         except discord.Forbidden:
-            await interaction.response.send_message("⚠️ Ticket kanalı oluşturamadım, yetkilerimi kontrol edin.", ephemeral=True)
+            await interaction.response.send_message("⚠️ Cannot create ticket channel. Check my permissions.", ephemeral=True)
             return
 
-        embed = discord.Embed(
-            title=f"🎫 Destek Talebi #{ticket_no:04d}",
-            description=f"{interaction.user.mention}, talebini buradan yaz. Bir yetkili en kısa sürede yardımcı olacak.",
-            color=discord.Color.blurple(),
-        )
-        await channel.send(embed=embed, view=TicketCloseView())
-        await interaction.response.send_message(f"✅ Talebin oluşturuldu: {channel.mention}", ephemeral=True)
+        if data["language"] == "tr":
+            title = f"🎫 Destek Talebi #{ticket_no:04d}"
+            desc = f"{interaction.user.mention}, talebini buradan yaz. Yetkili en kısa sürede yardımcı olacak."
+        else:
+            title = f"🎫 Support Ticket #{ticket_no:04d}"
+            desc = f"{interaction.user.mention}, write your request here. Staff will help soon."
+
+        embed = discord.Embed(title=title, description=desc, color=discord.Color.blurple())
+        await channel.send(embed=embed, view=TicketCloseView(lang))
+        await interaction.response.send_message(f"✅ {channel.mention}", ephemeral=True)
 
 
 class TicketCloseView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, lang):
         super().__init__(timeout=None)
+        self.lang = lang
+        label = "🔒 Talebi Kapat" if lang == LANGUAGES["tr"] else "🔒 Close Ticket"
+        self.close_button = discord.ui.Button(label=label, style=discord.ButtonStyle.danger, custom_id="ys_ticket_close_main")
+        self.close_button.callback = self.close_callback
+        self.add_item(self.close_button)
 
-    @discord.ui.button(label="🔒 Talebi Kapat", style=discord.ButtonStyle.danger, custom_id="ys_ticket_close")
-    async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not is_mod(interaction.user) and interaction.user != interaction.channel.topic:
-            pass  # herkes kapatabilir (isteğe göre kısıtlanabilir)
-        await interaction.response.send_message("🔒 Bu talep 5 saniye içinde kapatılacak...")
+    async def close_callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("🔒 Kapatılıyor... / Closing..." if self.lang == LANGUAGES["tr"] else "🔒 Closing...")
         await asyncio.sleep(5)
         try:
-            await interaction.channel.delete(reason=f"{interaction.user} tarafından kapatıldı")
+            await interaction.channel.delete(reason=f"Closed by {interaction.user}")
         except discord.Forbidden:
             pass
 
@@ -365,157 +402,150 @@ class TicketCloseView(discord.ui.View):
 # YARDIM MENÜSÜ
 # ======================================================================
 class HelpSelect(discord.ui.Select):
-    def __init__(self):
-        options = [
-            discord.SelectOption(label="Genel", emoji="ℹ️", value="genel"),
-            discord.SelectOption(label="HGBB / Otorol", emoji="🚪", value="otorol"),
-            discord.SelectOption(label="Moderasyon", emoji="🛡️", value="mod"),
-            discord.SelectOption(label="Güvenlik Ayarları", emoji="🔒", value="guvenlik"),
-            discord.SelectOption(label="Seviye Sistemi", emoji="⭐", value="seviye"),
-            discord.SelectOption(label="Ticket", emoji="🎫", value="ticket"),
-            discord.SelectOption(label="Çekiliş", emoji="🎉", value="cekilis"),
-        ]
-        super().__init__(placeholder="📂 Bir kategori seç...", options=options)
+    def __init__(self, guild_id):
+        self.guild_id = guild_id
+        lang = get_lang(guild_id)
+        categories = lang["help_categories"]
+        options = []
+        values = ["genel", "hgbb", "mod", "guvenlik", "seviye", "ticket", "cekilis"]
+        for i, (cat, val) in enumerate(zip(categories, values)):
+            options.append(discord.SelectOption(label=cat, value=val))
+        super().__init__(placeholder=lang["help_select_placeholder"], options=options, custom_id=f"ys_help_select_{guild_id}")
 
     async def callback(self, interaction: discord.Interaction):
+        lang = get_lang(self.guild_id)
         pages = {
-            "genel": discord.Embed(
-                title="ℹ️ Genel Komutlar",
-                description=(
-                    f"`{PREFIX}yardim` — Bu menüyü açar\n"
-                    f"`{PREFIX}bilgi` — Sunucu ve bot hakkında bilgi verir\n"
-                    f"`{PREFIX}ping` — Botun gecikmesini gösterir\n"
-                    f"`{PREFIX}ayarlar` — Sunucunun mevcut yapılandırmasını gösterir"
-                ),
-                color=discord.Color.blurple(),
-            ),
-            "otorol": discord.Embed(
-                title="🚪 HGBB & Otorol",
-                description=(
-                    f"`{PREFIX}ayarla-hgbb #kanal @doğrulanmamış-rol @üye-rol` *(yetkili)*\n"
-                    f"`{PREFIX}hgbb-kur` *(yetkili)* — doğrulama mesajını bu kanala kurar\n"
-                    f"`{PREFIX}otorol-ekle emoji @rol isim` *(yetkili)*\n"
-                    f"`{PREFIX}otorol-kaldir emoji` *(yetkili)*\n"
-                    f"`{PREFIX}otorol-kur` *(yetkili)* — rol seçim menüsünü bu kanala kurar"
-                ),
-                color=discord.Color.green(),
-            ),
-            "mod": discord.Embed(
-                title="🛡️ Moderasyon",
-                description=(
-                    f"`{PREFIX}at @kullanıcı [sebep]` — sunucudan atar\n"
-                    f"`{PREFIX}yasakla @kullanıcı [sebep]` — banlar\n"
-                    f"`{PREFIX}yasak-kaldir kullanıcı_id` — ban kaldırır\n"
-                    f"`{PREFIX}sustur @kullanıcı dakika [sebep]` — susturur (timeout)\n"
-                    f"`{PREFIX}sustur-kaldir @kullanıcı` — susturmayı kaldırır\n"
-                    f"`{PREFIX}uyar @kullanıcı [sebep]` — uyarı verir\n"
-                    f"`{PREFIX}uyarilar @kullanıcı` — uyarı geçmişini gösterir\n"
-                    f"`{PREFIX}temizle [adet]` — mesaj siler (maks. 100)\n"
-                    f"`{PREFIX}kilitle` / `{PREFIX}kilit-ac` — kanalı kilitler/açar\n"
-                    f"`{PREFIX}yavaslat saniye` — yavaş mod ayarlar\n"
-                    f"`{PREFIX}rol-ver @kullanıcı @rol` / `{PREFIX}rol-al @kullanıcı @rol`"
-                ),
-                color=discord.Color.red(),
-            ),
-            "guvenlik": discord.Embed(
-                title="🔒 Güvenlik Ayarları",
-                description=(
-                    f"`{PREFIX}ayarla-log #kanal` — log kanalını ayarlar\n"
-                    f"`{PREFIX}mod-rol @rol` — yetkili rolünü ayarlar\n"
-                    f"`{PREFIX}yasakli-ekle kelime` — yasaklı kelime ekler\n"
-                    f"`{PREFIX}yasakli-sil kelime` — yasaklı kelime siler\n"
-                    f"`{PREFIX}sunucu-kilitle` / `{PREFIX}sunucu-kilit-ac` — raid modunda tüm doğrulanmamış üyelerin mesajlarını engeller\n\n"
-                    "**Otomatik korumalar:** anti-spam, anti-raid, anti-link, "
-                    "mention-spam ve yasaklı kelime filtresi her zaman aktiftir."
-                ),
-                color=discord.Color.orange(),
-            ),
-            "seviye": discord.Embed(
-                title="⭐ Seviye Sistemi",
-                description=(
-                    f"`{PREFIX}seviye [@kullanıcı]` — seviye/XP bilgisini gösterir\n"
-                    f"`{PREFIX}liderlik` — sunucu liderlik tablosunu gösterir\n\n"
-                    "Mesaj attıkça otomatik XP kazanılır (spam'i önlemek için kısa bir bekleme süresi vardır)."
-                ),
-                color=discord.Color.gold(),
-            ),
-            "ticket": discord.Embed(
-                title="🎫 Ticket Sistemi",
-                description=(
-                    f"`{PREFIX}ayarla-ticket #kategori` — ticket kanallarının açılacağı kategoriyi ayarlar\n"
-                    f"`{PREFIX}ticket-kur` *(yetkili)* — destek talebi oluşturma mesajını bu kanala kurar"
-                ),
-                color=discord.Color.teal(),
-            ),
-            "cekilis": discord.Embed(
-                title="🎉 Çekiliş Sistemi",
-                description=(
-                    f"`{PREFIX}cekilis dakika ödül` *(yetkili)* — çekiliş başlatır, süre bitince 🎉 ile katılanlar arasından otomatik kazanan seçilir"
-                ),
-                color=discord.Color.magenta(),
-            ),
+            "genel": discord.Embed(title=lang["help_genel_title"], description=lang["help_genel_desc"].format(prefix=PREFIX), color=discord.Color.blurple()),
+            "hgbb": discord.Embed(title=lang["help_hgbb_title"], description=lang["help_hgbb_desc"].format(prefix=PREFIX), color=discord.Color.green()),
+            "mod": discord.Embed(title=lang["help_mod_title"], description=lang["help_mod_desc"].format(prefix=PREFIX), color=discord.Color.red()),
+            "guvenlik": discord.Embed(title=lang["help_guvenlik_title"], description=lang["help_guvenlik_desc"].format(prefix=PREFIX), color=discord.Color.orange()),
+            "seviye": discord.Embed(title=lang["help_seviye_title"], description=lang["help_seviye_desc"].format(prefix=PREFIX), color=discord.Color.gold()),
+            "ticket": discord.Embed(title=lang["help_ticket_title"], description=lang["help_ticket_desc"].format(prefix=PREFIX), color=discord.Color.teal()),
+            "cekilis": discord.Embed(title=lang["help_cekilis_title"], description=lang["help_cekilis_desc"].format(prefix=PREFIX), color=discord.Color.magenta()),
         }
         await interaction.response.edit_message(embed=pages[self.values[0]], view=self.view)
 
 
 class HelpView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, guild_id):
         super().__init__(timeout=120)
-        self.add_item(HelpSelect())
+        self.add_item(HelpSelect(guild_id))
 
 
-@bot.command(name="yardim")
+# ======================================================================
+# KOMUTLAR - YARDIM
+# ======================================================================
+@bot.command(name="yardim", aliases=["help"])
 async def yardim(ctx):
+    lang = get_lang(ctx.guild.id)
     embed = discord.Embed(
-        title="🛡️ YigitScript Security — Yardım Menüsü",
-        description=(
-            "Aşağıdaki menüden bir kategori seç.\n\n"
-            "**Sistemler:** HGBB • Otorol • Moderasyon • Güvenlik • Seviye • Ticket • Çekiliş"
-        ),
+        title=lang["help_title"],
+        description=lang["help_description"],
         color=discord.Color.blurple(),
     )
     embed.set_footer(text=f"Prefix: {PREFIX}  |  YigitScript Security")
-    await ctx.send(embed=embed, view=HelpView())
+    await ctx.send(embed=embed, view=HelpView(ctx.guild.id))
+
+
+@bot.command(name="dil", aliases=["language"])
+@mod_only()
+async def dil_cmd(ctx):
+    data = get_guild_data(ctx.guild.id)
+    current_lang = get_lang(ctx.guild.id)
+    view = LanguageView()
+    await ctx.send(current_lang["language_select_desc"], view=view)
 
 
 # ======================================================================
-# KURULUM / AYAR KOMUTLARI (yetkili)
+# HGBB - SADECE KANAL AYARI
 # ======================================================================
-@bot.command(name="ayarla-hgbb")
+@bot.command(name="hgbb-ayarla", aliases=["welcome-set"])
 @commands.has_permissions(administrator=True)
-async def ayarla_hgbb(ctx, kanal: discord.TextChannel, dogrulanmamis_rol: discord.Role, uye_rol: discord.Role):
+async def hgbb_ayarla(ctx, kanal: discord.TextChannel):
     data = get_guild_data(ctx.guild.id)
     data["welcome_channel_id"] = kanal.id
-    data["unverified_role_id"] = dogrulanmamis_rol.id
-    data["verified_role_id"] = uye_rol.id
     save_guild_data(ctx.guild.id, data)
-    await ctx.send(
-        f"✅ HGBB ayarlandı!\n📢 Karşılama kanalı: {kanal.mention}\n"
-        f"🔸 Doğrulanmamış rol: {dogrulanmamis_rol.mention}\n🔹 Üye rolü: {uye_rol.mention}"
-    )
+    lang = get_lang(ctx.guild.id)
+    await ctx.send(lang["hgbb_set"].format(channel=kanal.mention))
 
 
-@bot.command(name="hgbb-kur")
-@mod_only()
-async def hgbb_kur(ctx):
+# ======================================================================
+# OTOROL - BASİT VE OTOMATİK
+# ======================================================================
+@bot.command(name="otorol-ayarla", aliases=["autorole-set"])
+@commands.has_permissions(administrator=True)
+async def otorol_ayarla(ctx, rol: discord.Role):
     data = get_guild_data(ctx.guild.id)
-    if not data["verified_role_id"]:
-        await ctx.send(f"⚠️ Önce `{PREFIX}ayarla-hgbb #kanal @doğrulanmamış-rol @üye-rol` komutunu çalıştır.")
-        return
-    embed = discord.Embed(
-        title="🚪 Sunucuya Hoş Geldin!",
-        description=(
-            "Sunucunun tüm kanallarını görebilmek için aşağıdaki butona basarak "
-            "kendini doğrulaman gerekiyor.\n\nButona bastığında otomatik olarak üye rolün verilecek."
-        ),
-        color=discord.Color.blurple(),
-    )
-    embed.set_footer(text="YigitScript Security | HGBB")
-    await ctx.send(embed=embed, view=HGBBVerifyView())
-    await ctx.send("✅ Doğrulama mesajı bu kanala kuruldu.", delete_after=5)
+    data["otorol_role_id"] = rol.id
+    save_guild_data(ctx.guild.id, data)
+    lang = get_lang(ctx.guild.id)
+    await ctx.send(lang["otorol_set"].format(role=rol.mention))
 
 
-@bot.command(name="ayarla-log")
+@bot.command(name="otorol-kapat", aliases=["autorole-off"])
+@commands.has_permissions(administrator=True)
+async def otorol_kapat(ctx):
+    data = get_guild_data(ctx.guild.id)
+    data["otorol_role_id"] = None
+    save_guild_data(ctx.guild.id, data)
+    lang = get_lang(ctx.guild.id)
+    await ctx.send(lang["otorol_disabled"])
+
+
+# ======================================================================
+# KÜFÜR ENGEL
+# ======================================================================
+@bot.command(name="kufur-engel", aliases=["swear-filter"])
+@mod_only()
+async def kufur_engel(ctx, durum: str):
+    data = get_guild_data(ctx.guild.id)
+    lang = get_lang(ctx.guild.id)
+    if durum.lower() in ["ac", "on", "aktif", "enable"]:
+        data["kufur_engel"] = True
+        save_guild_data(ctx.guild.id, data)
+        await ctx.send(lang["kufur_engel_on"])
+    elif durum.lower() in ["kapat", "off", "devredisi", "disable"]:
+        data["kufur_engel"] = False
+        save_guild_data(ctx.guild.id, data)
+        await ctx.send(lang["kufur_engel_off"])
+    else:
+        await ctx.send("⚠️ Kullanım: `ys!kufur-engel ac/kapat` veya `ys!swear-filter on/off`")
+
+
+# ======================================================================
+# AYARLAR
+# ======================================================================
+@bot.command(name="ayarlar", aliases=["settings"])
+@mod_only()
+async def ayarlar(ctx):
+    data = get_guild_data(ctx.guild.id)
+    g = ctx.guild
+    lang = get_lang(ctx.guild.id)
+
+    def fmt_channel(cid):
+        ch = g.get_channel(cid) if cid else None
+        return ch.mention if ch else "Ayarlanmadı" if data["language"] == "tr" else "Not set"
+
+    def fmt_role(rid):
+        role = g.get_role(rid) if rid else None
+        return role.mention if role else "Ayarlanmadı" if data["language"] == "tr" else "Not set"
+
+    embed = discord.Embed(title="⚙️ Sunucu Ayarları" if data["language"] == "tr" else "⚙️ Server Settings", color=discord.Color.blurple())
+    embed.add_field(name="🌐 Dil / Language", value="🇹🇷 Türkçe" if data["language"] == "tr" else "🇬🇧 English", inline=True)
+    embed.add_field(name="📢 HGBB / Welcome", value=fmt_channel(data["welcome_channel_id"]), inline=True)
+    embed.add_field(name="📋 Log", value=fmt_channel(data["log_channel_id"]), inline=True)
+    embed.add_field(name="🛡️ Yetkili Rolü / Mod Role", value=fmt_role(data["mod_role_id"]), inline=True)
+    embed.add_field(name="🎭 Otorol / Autorole", value=fmt_role(data["otorol_role_id"]), inline=True)
+    embed.add_field(name="🔒 Kilit / Lockdown", value="🔒 Açık" if data["lockdown"] else "🔓 Kapalı" if data["language"] == "tr" else ("🔒 On" if data["lockdown"] else "🔓 Off"), inline=True)
+    embed.add_field(name="🚫 Küfür Engel / Swear Filter", value="✅ Açık" if data["kufur_engel"] else "❌ Kapalı" if data["language"] == "tr" else ("✅ On" if data["kufur_engel"] else "❌ Off"), inline=True)
+    embed.add_field(name="📝 Yasaklı Kelime / Banned Words", value=str(len(data["banned_words"])), inline=True)
+    await ctx.send(embed=embed)
+
+
+# ======================================================================
+# DİĞER KURULUM KOMUTLARI
+# ======================================================================
+@bot.command(name="ayarla-log", aliases=["set-log"])
 @commands.has_permissions(administrator=True)
 async def ayarla_log(ctx, kanal: discord.TextChannel):
     data = get_guild_data(ctx.guild.id)
@@ -524,7 +554,7 @@ async def ayarla_log(ctx, kanal: discord.TextChannel):
     await ctx.send(f"✅ Log kanalı {kanal.mention} olarak ayarlandı.")
 
 
-@bot.command(name="mod-rol")
+@bot.command(name="mod-rol", aliases=["mod-role"])
 @commands.has_permissions(administrator=True)
 async def mod_rol(ctx, rol: discord.Role):
     data = get_guild_data(ctx.guild.id)
@@ -533,45 +563,7 @@ async def mod_rol(ctx, rol: discord.Role):
     await ctx.send(f"✅ Yetkili rolü {rol.mention} olarak ayarlandı.")
 
 
-@bot.command(name="otorol-ekle")
-@commands.has_permissions(administrator=True)
-async def otorol_ekle(ctx, emoji: str, rol: discord.Role, *, isim: str):
-    data = get_guild_data(ctx.guild.id)
-    data["self_roles"][emoji] = {"role_id": rol.id, "name": isim}
-    save_guild_data(ctx.guild.id, data)
-    await ctx.send(f"✅ Otorol eklendi: {emoji} → {rol.mention} ({isim})")
-
-
-@bot.command(name="otorol-kaldir")
-@commands.has_permissions(administrator=True)
-async def otorol_kaldir(ctx, emoji: str):
-    data = get_guild_data(ctx.guild.id)
-    if emoji in data["self_roles"]:
-        del data["self_roles"][emoji]
-        save_guild_data(ctx.guild.id, data)
-        await ctx.send(f"✅ {emoji} otorolü kaldırıldı.")
-    else:
-        await ctx.send("⚠️ Bu emoji ile kayıtlı bir otorol yok.")
-
-
-@bot.command(name="otorol-kur")
-@mod_only()
-async def otorol_kur(ctx):
-    data = get_guild_data(ctx.guild.id)
-    if not data["self_roles"]:
-        await ctx.send(f"⚠️ Henüz otorol eklenmemiş. Önce `{PREFIX}otorol-ekle emoji @rol isim` komutunu kullan.")
-        return
-    aciklama = "\n".join(f"{emoji} — **{info['name']}**" for emoji, info in data["self_roles"].items())
-    embed = discord.Embed(
-        title="🎭 Rol Seçimi",
-        description=f"İlgilendiğin rolleri seçmek için aşağıdaki butonlara tıkla:\n\n{aciklama}",
-        color=discord.Color.gold(),
-    )
-    await ctx.send(embed=embed, view=SelfRoleView(ctx.guild.id))
-    await ctx.send("✅ Otorol menüsü bu kanala kuruldu.", delete_after=5)
-
-
-@bot.command(name="yasakli-ekle")
+@bot.command(name="yasakli-ekle", aliases=["add-bannedword"])
 @mod_only()
 async def yasakli_ekle(ctx, *, kelime: str):
     data = get_guild_data(ctx.guild.id)
@@ -582,7 +574,7 @@ async def yasakli_ekle(ctx, *, kelime: str):
     await ctx.send(f"✅ `{kelime}` yasaklı kelime listesine eklendi.")
 
 
-@bot.command(name="yasakli-sil")
+@bot.command(name="yasakli-sil", aliases=["remove-bannedword"])
 @mod_only()
 async def yasakli_sil(ctx, *, kelime: str):
     data = get_guild_data(ctx.guild.id)
@@ -595,7 +587,7 @@ async def yasakli_sil(ctx, *, kelime: str):
         await ctx.send("⚠️ Bu kelime listede yok.")
 
 
-@bot.command(name="ayarla-ticket")
+@bot.command(name="ayarla-ticket", aliases=["set-ticket"])
 @commands.has_permissions(administrator=True)
 async def ayarla_ticket(ctx, kategori: discord.CategoryChannel):
     data = get_guild_data(ctx.guild.id)
@@ -604,52 +596,35 @@ async def ayarla_ticket(ctx, kategori: discord.CategoryChannel):
     await ctx.send(f"✅ Ticket kategorisi **{kategori.name}** olarak ayarlandı.")
 
 
-@bot.command(name="ticket-kur")
+@bot.command(name="ticket-kur", aliases=["ticket-setup"])
 @mod_only()
 async def ticket_kur(ctx):
-    embed = discord.Embed(
-        title="🎫 Destek Sistemi",
-        description="Bir sorunun mu var? Aşağıdaki butona basarak özel bir destek talebi oluşturabilirsin.",
-        color=discord.Color.teal(),
-    )
-    await ctx.send(embed=embed, view=TicketOpenView())
-    await ctx.send("✅ Ticket mesajı bu kanala kuruldu.", delete_after=5)
-
-
-@bot.command(name="ayarlar")
-@mod_only()
-async def ayarlar(ctx):
     data = get_guild_data(ctx.guild.id)
-    g = ctx.guild
-
-    def fmt_channel(cid):
-        ch = g.get_channel(cid) if cid else None
-        return ch.mention if ch else "Ayarlanmadı"
-
-    def fmt_role(rid):
-        role = g.get_role(rid) if rid else None
-        return role.mention if role else "Ayarlanmadı"
-
-    embed = discord.Embed(title="⚙️ Sunucu Ayarları", color=discord.Color.blurple())
-    embed.add_field(name="Karşılama Kanalı", value=fmt_channel(data["welcome_channel_id"]), inline=True)
-    embed.add_field(name="Log Kanalı", value=fmt_channel(data["log_channel_id"]), inline=True)
-    embed.add_field(name="Doğrulanmamış Rol", value=fmt_role(data["unverified_role_id"]), inline=True)
-    embed.add_field(name="Üye Rolü", value=fmt_role(data["verified_role_id"]), inline=True)
-    embed.add_field(name="Yetkili Rolü", value=fmt_role(data["mod_role_id"]), inline=True)
-    embed.add_field(name="Kilit Modu", value="🔒 Açık" if data["lockdown"] else "🔓 Kapalı", inline=True)
-    embed.add_field(name="Otorol Sayısı", value=str(len(data["self_roles"])), inline=True)
-    embed.add_field(name="Yasaklı Kelime Sayısı", value=str(len(data["banned_words"])), inline=True)
-    await ctx.send(embed=embed)
+    if not data["ticket_category_id"]:
+        if data["language"] == "tr":
+            await ctx.send(f"⚠️ Önce `{PREFIX}ayarla-ticket #kategori` ile ticket kategorisini ayarlayın.")
+        else:
+            await ctx.send(f"⚠️ Set ticket category first with `{PREFIX}set-ticket #category`.")
+        return
+    lang = get_lang(ctx.guild.id)
+    if data["language"] == "tr":
+        title = "🎫 Destek Sistemi"
+        desc = "Destek talebi oluşturmak için butona tıkla."
+    else:
+        title = "🎫 Support System"
+        desc = "Click the button to create a support ticket."
+    embed = discord.Embed(title=title, description=desc, color=discord.Color.teal())
+    await ctx.send(embed=embed, view=TicketOpenView(ctx.guild.id))
 
 
-@bot.command(name="bilgi")
+@bot.command(name="bilgi", aliases=["info"])
 async def bilgi(ctx):
     data = get_guild_data(ctx.guild.id)
+    lang = get_lang(ctx.guild.id)
     embed = discord.Embed(title=f"📊 {ctx.guild.name}", color=discord.Color.blurple(), timestamp=datetime.now(timezone.utc))
-    embed.add_field(name="👥 Üye Sayısı", value=str(ctx.guild.member_count), inline=True)
-    embed.add_field(name="✅ Doğrulanan Üye", value=str(len(data["verified_users"])), inline=True)
+    embed.add_field(name="👥 Üye Sayısı" if data["language"] == "tr" else "👥 Members", value=str(ctx.guild.member_count), inline=True)
     embed.add_field(name="📡 Ping", value=f"{round(bot.latency * 1000)}ms", inline=True)
-    embed.add_field(name="🔒 Kilit Modu", value="Açık" if data["lockdown"] else "Kapalı", inline=True)
+    embed.add_field(name="🔒 Kilit" if data["language"] == "tr" else "🔒 Lockdown", value="Açık" if data["lockdown"] else "Kapalı" if data["language"] == "tr" else ("On" if data["lockdown"] else "Off"), inline=True)
     embed.set_footer(text="YigitScript Security")
     await ctx.send(embed=embed)
 
@@ -662,7 +637,7 @@ async def ping(ctx):
 # ======================================================================
 # MODERASYON KOMUTLARI
 # ======================================================================
-@bot.command(name="at")
+@bot.command(name="at", aliases=["kick"])
 @mod_only()
 async def kick_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi"):
     try:
@@ -678,7 +653,7 @@ async def kick_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi
     await log_event(ctx.guild, embed)
 
 
-@bot.command(name="yasakla")
+@bot.command(name="yasakla", aliases=["ban"])
 @mod_only()
 async def ban_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi"):
     try:
@@ -694,7 +669,7 @@ async def ban_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi"
     await log_event(ctx.guild, embed)
 
 
-@bot.command(name="yasak-kaldir")
+@bot.command(name="yasak-kaldir", aliases=["unban"])
 @mod_only()
 async def unban_cmd(ctx, kullanici_id: int):
     try:
@@ -707,11 +682,9 @@ async def unban_cmd(ctx, kullanici_id: int):
         await ctx.send("⚠️ Ban kaldırma yetkim yok.")
         return
     await ctx.send(f"✅ {user} adlı kullanıcının banı kaldırıldı.")
-    embed = discord.Embed(title="✅ Ban Kaldırıldı", description=str(user), color=discord.Color.green())
-    await log_event(ctx.guild, embed)
 
 
-@bot.command(name="sustur")
+@bot.command(name="sustur", aliases=["mute"])
 @mod_only()
 async def timeout_cmd(ctx, kullanici: discord.Member, dakika: int, *, sebep: str = "Belirtilmedi"):
     try:
@@ -727,7 +700,7 @@ async def timeout_cmd(ctx, kullanici: discord.Member, dakika: int, *, sebep: str
     await log_event(ctx.guild, embed)
 
 
-@bot.command(name="sustur-kaldir")
+@bot.command(name="sustur-kaldir", aliases=["unmute"])
 @mod_only()
 async def remove_timeout_cmd(ctx, kullanici: discord.Member):
     try:
@@ -738,7 +711,7 @@ async def remove_timeout_cmd(ctx, kullanici: discord.Member):
     await ctx.send(f"🔊 {kullanici.mention} kullanıcısının susturması kaldırıldı.")
 
 
-@bot.command(name="uyar")
+@bot.command(name="uyar", aliases=["warn"])
 @mod_only()
 async def warn_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi"):
     data = get_guild_data(ctx.guild.id)
@@ -748,7 +721,6 @@ async def warn_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi
     })
     save_guild_data(ctx.guild.id, data)
     toplam = len(data["warns"][uid])
-
     await ctx.send(f"⚠️ {kullanici.mention} uyarıldı. (Toplam uyarı: {toplam}) Sebep: {sebep}")
     embed = discord.Embed(title="⚠️ Kullanıcı Uyarıldı", color=discord.Color.orange(), timestamp=datetime.now(timezone.utc))
     embed.add_field(name="Kullanıcı", value=kullanici.mention, inline=True)
@@ -765,7 +737,7 @@ async def warn_cmd(ctx, kullanici: discord.Member, *, sebep: str = "Belirtilmedi
             pass
 
 
-@bot.command(name="uyarilar")
+@bot.command(name="uyarilar", aliases=["warnings"])
 @mod_only()
 async def warns_cmd(ctx, kullanici: discord.Member):
     data = get_guild_data(ctx.guild.id)
@@ -781,41 +753,34 @@ async def warns_cmd(ctx, kullanici: discord.Member):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="temizle")
+@bot.command(name="temizle", aliases=["clear"])
 @mod_only()
 async def clear_cmd(ctx, adet: int = 10):
     adet = max(1, min(adet, 100))
-    deleted = await ctx.channel.purge(limit=adet + 1)  # +1 komut mesajının kendisi
+    deleted = await ctx.channel.purge(limit=adet + 1)
     msg = await ctx.send(f"🗑️ {len(deleted) - 1} mesaj silindi.")
     await asyncio.sleep(3)
     try:
         await msg.delete()
     except discord.NotFound:
         pass
-    embed = discord.Embed(
-        title="🗑️ Mesaj Temizleme",
-        description=f"{ctx.author.mention} {ctx.channel.mention} kanalında **{len(deleted) - 1}** mesaj sildi.",
-        color=discord.Color.orange(),
-        timestamp=datetime.now(timezone.utc),
-    )
-    await log_event(ctx.guild, embed)
 
 
-@bot.command(name="kilitle")
+@bot.command(name="kilitle", aliases=["lock"])
 @mod_only()
 async def lock_channel(ctx):
     await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
     await ctx.send("🔒 Bu kanal kilitlendi.")
 
 
-@bot.command(name="kilit-ac")
+@bot.command(name="kilit-ac", aliases=["unlock"])
 @mod_only()
 async def unlock_channel(ctx):
     await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=None)
     await ctx.send("🔓 Bu kanalın kilidi açıldı.")
 
 
-@bot.command(name="yavaslat")
+@bot.command(name="yavaslat", aliases=["slowmode"])
 @mod_only()
 async def slowmode_cmd(ctx, saniye: int):
     saniye = max(0, min(saniye, 21600))
@@ -826,65 +791,50 @@ async def slowmode_cmd(ctx, saniye: int):
         await ctx.send(f"🐢 Yavaş mod {saniye} saniye olarak ayarlandı.")
 
 
-@bot.command(name="rol-ver")
+@bot.command(name="rol-ver", aliases=["giverole"])
 @mod_only()
 async def give_role_cmd(ctx, kullanici: discord.Member, rol: discord.Role):
     try:
         await kullanici.add_roles(rol, reason=f"{ctx.author} tarafından verildi")
     except discord.Forbidden:
-        await ctx.send("⚠️ Bu rolü veremiyorum, rol hiyerarşisini kontrol et.")
+        await ctx.send("⚠️ Bu rolü veremiyorum.")
         return
     await ctx.send(f"✅ {kullanici.mention} kullanıcısına {rol.mention} rolü verildi.")
 
 
-@bot.command(name="rol-al")
+@bot.command(name="rol-al", aliases=["removerole"])
 @mod_only()
 async def remove_role_cmd(ctx, kullanici: discord.Member, rol: discord.Role):
     try:
         await kullanici.remove_roles(rol, reason=f"{ctx.author} tarafından alındı")
     except discord.Forbidden:
-        await ctx.send("⚠️ Bu rolü alamıyorum, rol hiyerarşisini kontrol et.")
+        await ctx.send("⚠️ Bu rolü alamıyorum.")
         return
     await ctx.send(f"✅ {kullanici.mention} kullanıcısından {rol.mention} rolü alındı.")
 
 
-@bot.command(name="sunucu-kilitle")
+@bot.command(name="sunucu-kilitle", aliases=["server-lock"])
 @commands.has_permissions(administrator=True)
 async def guild_lockdown_on(ctx):
     data = get_guild_data(ctx.guild.id)
     data["lockdown"] = True
     save_guild_data(ctx.guild.id, data)
-    await ctx.send("🔒 Sunucu kilit moduna alındı. Doğrulanmamış üyelerin mesajları otomatik silinecek.")
-    embed = discord.Embed(title="🔒 Kilitleme Aktif", description=f"{ctx.author.mention} sunucuyu kilitledi.", color=discord.Color.red())
-    await log_event(ctx.guild, embed)
+    await ctx.send("🔒 Sunucu kilit moduna alındı.")
 
 
-@bot.command(name="sunucu-kilit-ac")
+@bot.command(name="sunucu-kilit-ac", aliases=["server-unlock"])
 @commands.has_permissions(administrator=True)
 async def guild_lockdown_off(ctx):
     data = get_guild_data(ctx.guild.id)
     data["lockdown"] = False
     save_guild_data(ctx.guild.id, data)
     await ctx.send("🔓 Kilit modu kapatıldı.")
-    embed = discord.Embed(title="🔓 Kilitleme Kaldırıldı", description=f"{ctx.author.mention} kilidi kaldırdı.", color=discord.Color.green())
-    await log_event(ctx.guild, embed)
-
-
-@bot.command(name="nick")
-@mod_only()
-async def nick_cmd(ctx, kullanici: discord.Member, *, yeni_isim: str):
-    try:
-        await kullanici.edit(nick=yeni_isim, reason=f"{ctx.author} tarafından değiştirildi")
-    except discord.Forbidden:
-        await ctx.send("⚠️ Bu kullanıcının ismini değiştiremiyorum.")
-        return
-    await ctx.send(f"✅ {kullanici.mention} kullanıcısının ismi değiştirildi.")
 
 
 # ======================================================================
-# SEVİYE / XP SİSTEMİ
+# SEVİYE SİSTEMİ
 # ======================================================================
-@bot.command(name="seviye")
+@bot.command(name="seviye", aliases=["rank"])
 async def seviye_cmd(ctx, kullanici: discord.Member = None):
     kullanici = kullanici or ctx.author
     data = get_guild_data(ctx.guild.id)
@@ -902,12 +852,12 @@ async def seviye_cmd(ctx, kullanici: discord.Member = None):
     await ctx.send(embed=embed)
 
 
-@bot.command(name="liderlik")
+@bot.command(name="liderlik", aliases=["leaderboard"])
 async def leaderboard_cmd(ctx):
     data = get_guild_data(ctx.guild.id)
     siralanmis = sorted(data["xp"].items(), key=lambda kv: kv[1]["xp"], reverse=True)[:10]
     if not siralanmis:
-        await ctx.send("Henüz kimse XP kazanmamış.")
+        await ctx.send("Henüz kimse XP kazanmamış." if data["language"] == "tr" else "No one has earned XP yet.")
         return
     aciklama = ""
     madalyalar = ["🥇", "🥈", "🥉"]
@@ -921,18 +871,23 @@ async def leaderboard_cmd(ctx):
 
 
 # ======================================================================
-# ÇEKİLİŞ (GIVEAWAY) SİSTEMİ
+# ÇEKİLİŞ
 # ======================================================================
-@bot.command(name="cekilis")
+@bot.command(name="cekilis", aliases=["giveaway"])
 @mod_only()
 async def giveaway_cmd(ctx, dakika: int, *, odul: str):
+    lang = get_lang(ctx.guild.id)
     bitis = datetime.now(timezone.utc) + timedelta(minutes=dakika)
-    embed = discord.Embed(
-        title="🎉 ÇEKİLİŞ BAŞLADI!",
-        description=f"**Ödül:** {odul}\n\nKatılmak için 🎉 ile tepki ver!\n**Bitiş:** {dakika} dakika sonra",
-        color=discord.Color.magenta(),
-    )
-    embed.set_footer(text=f"Başlatan: {ctx.author}")
+    if lang == LANGUAGES["tr"]:
+        title = "🎉 ÇEKİLİŞ BAŞLADI!"
+        desc = f"**Ödül:** {odul}\n\nKatılmak için 🎉 ile tepki ver!\n**Bitiş:** {dakika} dakika sonra"
+        footer = f"Başlatan: {ctx.author}"
+    else:
+        title = "🎉 GIVEAWAY STARTED!"
+        desc = f"**Prize:** {odul}\n\nReact with 🎉 to enter!\n**Ends in:** {dakika} minutes"
+        footer = f"Started by: {ctx.author}"
+    embed = discord.Embed(title=title, description=desc, color=discord.Color.magenta())
+    embed.set_footer(text=footer)
     msg = await ctx.send(embed=embed)
     await msg.add_reaction("🎉")
 
@@ -951,16 +906,127 @@ async def giveaway_cmd(ctx, dakika: int, *, odul: str):
                 katilimcilar.append(user)
 
     if not katilimcilar:
-        await ctx.send(f"🎉 Çekiliş sona erdi ama kimse katılmamış! Ödül: **{odul}**")
+        if lang == LANGUAGES["tr"]:
+            await ctx.send(f"🎉 Çekiliş sona erdi ama kimse katılmamış! Ödül: **{odul}**")
+        else:
+            await ctx.send(f"🎉 Giveaway ended but no one joined! Prize: **{odul}**")
         return
 
     kazanan = random.choice(katilimcilar)
-    sonuc_embed = discord.Embed(
-        title="🎉 ÇEKİLİŞ SONA ERDİ!",
-        description=f"**Ödül:** {odul}\n**Kazanan:** {kazanan.mention}\n\nTebrikler! 🎊",
-        color=discord.Color.green(),
-    )
+    if lang == LANGUAGES["tr"]:
+        sonuc_title = "🎉 ÇEKİLİŞ SONA ERDİ!"
+        sonuc_desc = f"**Ödül:** {odul}\n**Kazanan:** {kazanan.mention}\n\nTebrikler! 🎊"
+    else:
+        sonuc_title = "🎉 GIVEAWAY ENDED!"
+        sonuc_desc = f"**Prize:** {odul}\n**Winner:** {kazanan.mention}\n\nCongratulations! 🎊"
+    sonuc_embed = discord.Embed(title=sonuc_title, description=sonuc_desc, color=discord.Color.green())
     await ctx.send(embed=sonuc_embed)
+
+
+# ======================================================================
+# ÖZEL KANAL MESAJI (1531992520547106930)
+# ======================================================================
+TARGET_CHANNEL_ID = 1531992520547106930
+
+
+@tasks.loop(minutes=5)
+async def send_status_message():
+    channel = bot.get_channel(TARGET_CHANNEL_ID)
+    if not channel:
+        try:
+            channel = await bot.fetch_channel(TARGET_CHANNEL_ID)
+        except:
+            return
+    if not channel:
+        return
+
+    uptime_seconds = int(time.time() - bot_start_time)
+    hours = uptime_seconds // 3600
+    minutes = (uptime_seconds % 3600) // 60
+    seconds = uptime_seconds % 60
+    uptime_str = f"{hours}:{minutes:02d}:{seconds:02d}"
+
+    ping = round(bot.latency * 1000)
+    guild_count = len(bot.guilds)
+    total_members = sum(g.member_count for g in bot.guilds)
+    total_xp = 0
+    db = load_db()
+    for gid, gdata in db.get("guilds", {}).items():
+        for uid, xpdata in gdata.get("xp", {}).items():
+            total_xp += xpdata.get("xp", 0)
+
+    embed = discord.Embed(
+        title="🛡️ **YIGITSCRIPT SECURITY** 🛡️",
+        description="```ansi\n⚡ YIGIT SECURITY — ONLINE & READY\n```",
+        color=0x00ff00,
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    embed.add_field(
+        name="📊 **SUNUCU BİLGİLERİ**",
+        value=f"```\n"
+              f"┌ 👥 Sunucu Sayısı: {guild_count}\n"
+              f"├ 👤 Toplam Üye: {total_members:,}\n"
+              f"├ 🛡️ Korunan Üye: {total_members:,}\n"
+              f"└ ⭐ Toplam XP: {total_xp:,}\n"
+              f"```",
+        inline=False
+    )
+
+    embed.add_field(
+        name="💻 **SİSTEM DURUMU**",
+        value=f"```\n"
+              f"┌ 📡 Ping: {ping}ms\n"
+              f"├ ⏱️ Uptime: {uptime_str}\n"
+              f"├ 🔒 Anti-Spam: ✅ Aktif\n"
+              f"├ 🚫 Küfür Filtresi: ✅ Aktif\n"
+              f"├ 🔗 Anti-Link: ✅ Aktif\n"
+              f"└ 🛡️ Anti-Raid: ✅ Aktif\n"
+              f"```",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🛡️ **GÜVENLİK ÖZELLİKLERİ**",
+        value=f"```\n"
+              f"┌ 🔇 Anti-Spam (Flood)\n"
+              f"├ 📢 Anti-Mention Spam\n"
+              f"├ 🔗 Anti-Discord Link\n"
+              f"├ 🚫 Küfür Engelleme\n"
+              f"├ 🌍 Çoklu Dil Desteği (TR/EN)\n"
+              f"├ 🚪 HGBB Sistemi\n"
+              f"├ 🎭 Otomatik Rol\n"
+              f"├ ⚠️ Uyarı Sistemi (3 uyarı = otomatik mute)\n"
+              f"├ 🔒 Sunucu Kilitleme\n"
+              f"└ 🚨 Anti-Raid Koruması\n"
+              f"```",
+        inline=False
+    )
+
+    embed.add_field(
+        name="🔗 **KOMUTLAR**",
+        value=f"`{PREFIX}yardim` • `{PREFIX}help` • `{PREFIX}dil` • `{PREFIX}ayarlar`\n"
+              f"`{PREFIX}hgbb-ayarla` • `{PREFIX}otorol-ayarla`\n"
+              f"`{PREFIX}kufur-engel` • `{PREFIX}sunucu-kilitle`",
+        inline=False
+    )
+
+    embed.set_footer(text="YigitScript Security • 7/24 Koruma • ys!yardim")
+    embed.set_thumbnail(url=bot.user.display_avatar.url if bot.user else None)
+
+    # Önceki mesajları silip yenisini gönder
+    try:
+        async for msg in channel.history(limit=5):
+            if msg.author == bot.user:
+                try:
+                    await msg.delete()
+                except:
+                    pass
+        await channel.send(embed=embed)
+    except discord.Forbidden:
+        pass
+    except Exception as e:
+        print(f"Status message error: {e}")
 
 
 # ======================================================================
@@ -969,8 +1035,10 @@ async def giveaway_cmd(ctx, dakika: int, *, odul: str):
 STATUS_MESSAGES = [
     ("watching", "YigitScript Security 🛡️"),
     ("listening", f"{PREFIX}yardim"),
-    ("watching", "sunucunu koruyorum"),
+    ("watching", "sunucunu koruyorum 🛡️"),
     ("competing", "anti-raid & anti-spam"),
+    ("watching", "over your server 👀"),
+    ("listening", f"{PREFIX}help"),
 ]
 
 
@@ -995,52 +1063,58 @@ async def on_ready():
     print(f"✅ Bot hazır! {bot.user}")
     print(f"📊 {len(bot.guilds)} sunucuda aktif")
 
-    # Kalıcı (persistent) view'ları yeniden ekle
-    bot.add_view(HGBBVerifyView())
-    bot.add_view(TicketOpenView())
-    bot.add_view(TicketCloseView())
-    db = load_db()
-    for gid in db.get("guilds", {}):
-        try:
-            bot.add_view(SelfRoleView(int(gid)))
-        except Exception as e:
-            print(f"⚠️ Otorol view yüklenemedi ({gid}): {e}")
+    # Kalıcı view'ları ekle
+    bot.add_view(TicketOpenView(0))  # placeholder, her sunucu için ayrı
+    bot.add_view(TicketCloseView(LANGUAGES["tr"]))
+    bot.add_view(TicketCloseView(LANGUAGES["en"]))
 
     if not status_loop.is_running():
         status_loop.start()
+    if not send_status_message.is_running():
+        send_status_message.start()
 
 
 @bot.event
 async def on_member_join(member: discord.Member):
     guild = member.guild
     data = get_guild_data(guild.id)
+    lang = get_lang(guild.id)
     now = time.time()
     joins = join_times_by_guild[guild.id]
     joins.append(now)
 
+    # Anti-raid kontrolü
     if len(joins) == RAID_JOIN_LIMIT and (now - joins[0]) <= RAID_TIME_WINDOW and not data["lockdown"]:
         data["lockdown"] = True
         save_guild_data(guild.id, data)
         embed = discord.Embed(
-            title="🚨 OLASI RAID TESPİT EDİLDİ",
-            description=f"Son {RAID_TIME_WINDOW} saniyede {RAID_JOIN_LIMIT} üye katıldı. Sunucu otomatik olarak kilitlendi.",
+            title="🚨 RAID DETECTED!" if lang != LANGUAGES["tr"] else "🚨 OLASI RAID TESPİT EDİLDİ",
+            description=f"{RAID_JOIN_LIMIT} members joined in {RAID_TIME_WINDOW}s. Server locked." if lang != LANGUAGES["tr"] else f"Son {RAID_TIME_WINDOW} saniyede {RAID_JOIN_LIMIT} üye katıldı. Sunucu otomatik kilitlendi.",
             color=discord.Color.dark_red(),
         )
         await log_event(guild, embed)
 
-    unverified_role = guild.get_role(data["unverified_role_id"]) if data["unverified_role_id"] else None
-    if unverified_role:
-        try:
-            await member.add_roles(unverified_role, reason="HGBB - yeni üye")
-        except discord.Forbidden:
-            pass
+    # Otorol
+    otorol_role_id = data.get("otorol_role_id")
+    if otorol_role_id:
+        otorol_role = guild.get_role(otorol_role_id)
+        if otorol_role:
+            try:
+                await member.add_roles(otorol_role, reason="Otomatik rol (otorol)")
+            except discord.Forbidden:
+                pass
 
+    # HGBB mesajı
     welcome_channel = guild.get_channel(data["welcome_channel_id"]) if data["welcome_channel_id"] else None
     if welcome_channel:
+        welcome_msg = lang["welcome_message"].format(
+            member_mention=member.mention,
+            member_name=member.display_name,
+            member_count=guild.member_count
+        )
         embed = discord.Embed(
-            title="👋 Aramıza Hoş Geldin!",
-            description=f"{member.mention}, sunucuyu tam olarak kullanabilmek için doğrulama butonuna basmayı unutma.",
-            color=discord.Color.blurple(),
+            description=welcome_msg,
+            color=discord.Color.green(),
         )
         embed.set_thumbnail(url=member.display_avatar.url)
         try:
@@ -1048,14 +1122,48 @@ async def on_member_join(member: discord.Member):
         except discord.Forbidden:
             pass
 
-    log_embed = discord.Embed(title="📥 Üye Katıldı", description=f"{member.mention} ({member.id})", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+    # Log
+    log_embed = discord.Embed(
+        title="📥 Member Joined" if lang != LANGUAGES["tr"] else "📥 Üye Katıldı",
+        description=f"{member.mention} ({member.id})",
+        color=discord.Color.green(),
+        timestamp=datetime.now(timezone.utc)
+    )
     await log_event(guild, log_embed)
 
 
 @bot.event
 async def on_member_remove(member: discord.Member):
-    embed = discord.Embed(title="📤 Üye Ayrıldı", description=f"{member} ({member.id})", color=discord.Color.dark_grey(), timestamp=datetime.now(timezone.utc))
-    await log_event(member.guild, embed)
+    guild = member.guild
+    data = get_guild_data(guild.id)
+    lang = get_lang(guild.id)
+
+    # HGBB çıkış mesajı
+    welcome_channel = guild.get_channel(data["welcome_channel_id"]) if data["welcome_channel_id"] else None
+    if welcome_channel:
+        leave_msg = lang["leave_message"].format(
+            member_mention=member.mention,
+            member_name=member.display_name,
+            member_count=guild.member_count
+        )
+        embed = discord.Embed(
+            description=leave_msg,
+            color=discord.Color.red(),
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        try:
+            await welcome_channel.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
+    # Log
+    log_embed = discord.Embed(
+        title="📤 Member Left" if lang != LANGUAGES["tr"] else "📤 Üye Ayrıldı",
+        description=f"{member} ({member.id})",
+        color=discord.Color.dark_grey(),
+        timestamp=datetime.now(timezone.utc)
+    )
+    await log_event(guild, log_embed)
 
 
 @bot.event
@@ -1089,25 +1197,39 @@ async def on_message(message: discord.Message):
 
     member = message.author
     data = get_guild_data(message.guild.id)
+    lang = get_lang(message.guild.id)
 
     if not is_mod(member):
-        # Kilit modu: doğrulanmamış üyelerin mesajlarını sil
-        if data.get("lockdown"):
-            unverified_role = message.guild.get_role(data["unverified_role_id"]) if data["unverified_role_id"] else None
-            if unverified_role and unverified_role in member.roles:
-                try:
-                    await message.delete()
-                except discord.Forbidden:
-                    pass
-                return
-
         lowered = message.content.lower()
+
+        # Kilit modu - herkesin mesajını engelle
+        if data.get("lockdown"):
+            try:
+                await message.delete()
+            except discord.Forbidden:
+                pass
+            return
+
+        # Küfür filtresi
+        if data.get("kufur_engel", True):
+            badwords = get_badwords(message.guild.id)
+            for word in badwords:
+                if word in lowered:
+                    try:
+                        await message.delete()
+                        warning = await message.channel.send(
+                            lang["kufur_engel_warning"].format(member=member.mention),
+                            delete_after=5
+                        )
+                    except discord.Forbidden:
+                        pass
+                    return
 
         # Anti-link
         if "discord.gg/" in lowered or "discord.com/invite/" in lowered:
             try:
                 await message.delete()
-                await message.channel.send(f"⚠️ {member.mention} davet linki paylaşamazsın!", delete_after=5)
+                await message.channel.send(f"⚠️ {member.mention} davet linki paylaşamazsın!" if lang == LANGUAGES["tr"] else f"⚠️ {member.mention} you cannot share invite links!", delete_after=5)
             except discord.Forbidden:
                 pass
             return
@@ -1116,7 +1238,7 @@ async def on_message(message: discord.Message):
         if any(word in lowered for word in data.get("banned_words", [])):
             try:
                 await message.delete()
-                await message.channel.send(f"⚠️ {member.mention} mesajın yasaklı kelime içeriyor!", delete_after=5)
+                await message.channel.send(f"⚠️ {member.mention} mesajın yasaklı kelime içeriyor!" if lang == LANGUAGES["tr"] else f"⚠️ {member.mention} your message contains a banned word!", delete_after=5)
             except discord.Forbidden:
                 pass
             return
@@ -1126,7 +1248,7 @@ async def on_message(message: discord.Message):
             try:
                 await message.delete()
                 await member.timeout(timedelta(minutes=SPAM_TIMEOUT_MINUTES), reason="Toplu mention spam")
-                await message.channel.send(f"🔇 {member.mention} toplu mention attığı için susturuldu.")
+                await message.channel.send(f"🔇 {member.mention} toplu mention attığı için susturuldu." if lang == LANGUAGES["tr"] else f"🔇 {member.mention} muted for mass mention spam.")
             except discord.Forbidden:
                 pass
             return
@@ -1138,10 +1260,10 @@ async def on_message(message: discord.Message):
         if len(times) == SPAM_MESSAGE_LIMIT and (now - times[0]) <= SPAM_TIME_WINDOW:
             try:
                 await member.timeout(timedelta(minutes=SPAM_TIMEOUT_MINUTES), reason="Otomatik anti-spam")
-                await message.channel.send(f"🔇 {member.mention} spam yaptığı için {SPAM_TIMEOUT_MINUTES} dakika susturuldu.")
+                await message.channel.send(f"🔇 {member.mention} spam yaptığı için {SPAM_TIMEOUT_MINUTES} dakika susturuldu." if lang == LANGUAGES["tr"] else f"🔇 {member.mention} muted for {SPAM_TIMEOUT_MINUTES} minutes for spamming.")
                 embed = discord.Embed(
-                    title="🛡️ Anti-Spam Tetiklendi",
-                    description=f"{member.mention} kısa sürede çok fazla mesaj attığı için susturuldu.",
+                    title="🛡️ Anti-Spam" if lang == LANGUAGES["tr"] else "🛡️ Anti-Spam Triggered",
+                    description=f"{member.mention} kısa sürede çok fazla mesaj attığı için susturuldu." if lang == LANGUAGES["tr"] else f"{member.mention} muted for sending too many messages.",
                     color=discord.Color.red(),
                 )
                 await log_event(message.guild, embed)
@@ -1149,7 +1271,7 @@ async def on_message(message: discord.Message):
                 pass
             times.clear()
 
-    # XP kazanımı (spam durumunda da makul, çünkü cooldown var)
+    # XP kazanımı
     key = (message.guild.id, member.id)
     now = time.time()
     last = xp_cooldowns.get(key, 0)
@@ -1163,7 +1285,7 @@ async def on_message(message: discord.Message):
         save_guild_data(message.guild.id, data)
         if yeni_seviye > eski_seviye:
             try:
-                await message.channel.send(f"🎉 {member.mention} **Seviye {yeni_seviye}**'e yükseldi!")
+                await message.channel.send(f"🎉 {member.mention} **Seviye {yeni_seviye}**'e yükseldi!" if lang == LANGUAGES["tr"] else f"🎉 {member.mention} leveled up to **Level {yeni_seviye}**!")
             except discord.Forbidden:
                 pass
 
@@ -1173,11 +1295,11 @@ async def on_message(message: discord.Message):
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ Bu komutu kullanmak için yetkin yok.", delete_after=6)
+        await ctx.send(get_text(ctx.guild.id if ctx.guild else None, "no_permission"), delete_after=6)
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"⚠️ Eksik parametre var. `{PREFIX}yardim` yazarak komut kullanımına bakabilirsin.", delete_after=8)
     elif isinstance(error, (commands.BadArgument, commands.MemberNotFound, commands.RoleNotFound, commands.ChannelNotFound)):
-        await ctx.send("⚠️ Belirttiğin kullanıcı/rol/kanal bulunamadı. Doğru şekilde etiketlediğinden emin ol.", delete_after=8)
+        await ctx.send("⚠️ Belirttiğin kullanıcı/rol/kanal bulunamadı.", delete_after=8)
     elif isinstance(error, commands.CommandNotFound):
         return
     else:
